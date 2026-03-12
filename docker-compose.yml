@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    container_name: fast-notes-app
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      # Persistencia: las notas se guardarán en una carpeta local llamada 'notes'
+      - ./notes:/root/notes
+    restart: unless-stopped

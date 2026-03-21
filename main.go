@@ -125,7 +125,7 @@ func writeNote(notesDir, body string, loc *time.Location) (string, error) {
 	for i := 0; i < 3; i++ {
 		now := time.Now().In(loc)
 
-		filename := now.Format("20060102-150405") + ".md"
+		filename := now.Format("20060102_150405") + ".md"
 		path := filepath.Join(notesDir, filename)
 
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)

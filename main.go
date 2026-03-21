@@ -23,7 +23,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Load .env from the binary directory first, then fallback to cwd for development.
 	_ = loadDotEnv(filepath.Join(exeDir, ".env"))
 	_ = loadDotEnv(".env")
 
@@ -39,7 +38,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	defaultLoc, err := time.LoadLocation("Europe/Madrid")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error loading timezone: %v\n", err)
+		os.Exit(1)
+	}
+
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -54,10 +60,12 @@ func main() {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+
 		if err := r.ParseForm(); err != nil {
 			respond(w, r, http.StatusBadRequest, "Solicitud invalida")
 			return
 		}
+
 		providedPin := strings.TrimSpace(r.FormValue("pin"))
 		if providedPin == "" || providedPin != pin {
 			respond(w, r, http.StatusUnauthorized, "PIN incorrecto")
@@ -70,7 +78,16 @@ func main() {
 			return
 		}
 
-		filename, err := writeNote(notesDir, note)
+		tz := strings.TrimSpace(r.FormValue("tz"))
+		loc := defaultLoc
+
+		if tz != "" {
+			if l, err := time.LoadLocation(tz); err == nil {
+				loc = l
+			}
+		}
+
+		filename, err := writeNote(notesDir, note, loc)
 		if err != nil {
 			respond(w, r, http.StatusInternalServerError, "No se pudo guardar la nota")
 			return
@@ -104,18 +121,32 @@ func executableDir() (string, error) {
 	return filepath.Dir(exe), nil
 }
 
-func writeNote(notesDir, body string) (string, error) {
+func writeNote(notesDir, body string, loc *time.Location) (string, error) {
 	for i := 0; i < 3; i++ {
-		name := time.Now().Format("20060102-150405") + ".md"
-		path := filepath.Join(notesDir, name)
+		now := time.Now().In(loc)
+
+		filename := now.Format("20060102-150405") + ".md"
+		path := filepath.Join(notesDir, filename)
+
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err == nil {
 			defer f.Close()
-			if _, werr := f.WriteString(body + "\n"); werr != nil {
+
+			formatted := now.Format("Monday, 02 Jan 2006 15:04:05 MST")
+
+			content := fmt.Sprintf(
+				"<!-- tz: %s -->\n<!-- created: %s -->\n\n%s\n",
+				loc.String(),
+				formatted,
+				body,
+			)
+
+			if _, werr := f.WriteString(content); werr != nil {
 				return "", werr
 			}
-			return name, nil
+			return filename, nil
 		}
+
 		if !errors.Is(err, os.ErrExist) {
 			return "", err
 		}
@@ -151,22 +182,104 @@ func pageHTML() string {
     body { font-family: "IBM Plex Sans", "Segoe UI", sans-serif; margin: 40px; max-width: 820px; }
     h1 { font-size: 28px; margin-bottom: 16px; }
     label { display: block; font-weight: 600; margin: 14px 0 6px; }
-    input[type=number] { width: 140px; padding: 8px; font-size: 16px; }
+    input, select { padding: 8px; font-size: 16px; }
     textarea { width: 100%; min-height: 320px; padding: 12px; font-size: 15px; font-family: "IBM Plex Mono", monospace; }
     button { margin-top: 16px; padding: 10px 18px; font-size: 16px; cursor: pointer; }
     .msg { margin-top: 16px; padding: 10px 12px; background: #f2f2f2; border-left: 4px solid #333; }
+    .preview { margin-top: 10px; font-size: 14px; color: #444; }
+    .filename { font-family: monospace; color: #222; }
   </style>
 </head>
 <body>
   <h1>Agregar nota</h1>
+
   <form method="post" action="/notes" hx-post="/notes" hx-target="#result" hx-swap="innerHTML">
+    
     <label for="pin">PIN</label>
     <input id="pin" name="pin" type="number" inputmode="numeric" required />
+
+    <label for="tzSelect">Zona horaria</label>
+    <select id="tzSelect" name="tz"></select>
+
+    <div class="preview">
+      Fecha de guardado:<br>
+      <strong id="previewDate"></strong>
+    </div>
+
+    <div class="preview">
+      Nombre del archivo:<br>
+      <span class="filename" id="previewFilename"></span>
+    </div>
+
     <label for="note">Nota (Markdown)</label>
     <textarea id="note" name="note" placeholder="Escribe tu nota en Markdown" required></textarea>
+
     <button type="submit">Guardar</button>
   </form>
+
   <div id="result"></div>
+
+  <script>
+    const tzSelect = document.getElementById("tzSelect");
+    const previewDate = document.getElementById("previewDate");
+    const previewFilename = document.getElementById("previewFilename");
+
+    const userTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    function updatePreview() {
+      const tz = tzSelect.value;
+      const now = new Date();
+
+      const formatted = new Intl.DateTimeFormat("es-ES", {
+        timeZone: tz,
+        dateStyle: "full",
+        timeStyle: "medium"
+      }).format(now);
+
+      previewDate.textContent = formatted;
+
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23"
+      }).formatToParts(now);
+
+      const map = {};
+      parts.forEach(p => map[p.type] = p.value);
+
+      const filename =
+        map.year +
+        map.month +
+        map.day + "-" +
+        map.hour +
+        map.minute +
+        map.second +
+        ".md";
+
+      previewFilename.textContent = filename;
+    }
+
+    const timezones = Intl.supportedValuesOf
+      ? Intl.supportedValuesOf("timeZone")
+      : ["Europe/Madrid", "UTC"];
+
+    timezones.forEach(tz => {
+      const opt = document.createElement("option");
+      opt.value = tz;
+      opt.textContent = tz;
+      if (tz === userTZ) opt.selected = true;
+      tzSelect.appendChild(opt);
+    });
+
+    tzSelect.addEventListener("change", updatePreview);
+
+    updatePreview();
+  </script>
 </body>
 </html>`
 }

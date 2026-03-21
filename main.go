@@ -255,7 +255,7 @@ func pageHTML() string {
       const filename =
         map.year +
         map.month +
-        map.day + "-" +
+        map.day + "_" +
         map.hour +
         map.minute +
         map.second +

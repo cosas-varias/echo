@@ -7,7 +7,16 @@ It is free/libre and gratis software.
 Architecture
 ---
 
-**SaidItFragment** the main view of the app.
+**SaidItFragment** the main view of the app, and the only one you normally look at: what is being
+captured right now, the things you do with it, and every setting below that. It draws the live
+half on a one second timer; **SettingsPanel** draws the settings half, and only when something
+changes, so a field being typed into is never overwritten under the cursor. Traces, the
+questionnaire and diagnostics are the only separate screens.
+
+Settings are folded into sections whose headers carry a summary of how each group currently stands
+— on or off, at what interval, listening for which word — so the whole configuration can be read
+without unfolding anything, and each summary is refreshed on the timer because some of what it
+reports (a revoked permission, GPS switched off) changes from outside the app.
 
 **SaidItService** manages a high priority thread that records audio. The thread is a state machine that can be accessed by sending it tasks using Android's Handler (`audioHandler`).
 
@@ -15,19 +24,35 @@ Architecture
 
 **GpxTrack** (thread-safe) buffers location fixes and writes them out as a GPX track.
 
+**ShakeCameraCapturer** watches the accelerometer and records a short silent clip from each camera
+when the phone is shaken hard and then held still, see *Asking for a clip* below. The front camera
+can be left out.
+
+**KeywordDetector** listens for a spoken word in the PCM the recorder has already read and sounds
+an alarm when it hears it, see *Hearing a word* below.
+
+**Survey** reads the branching questionnaire in `assets/survey.json`; **SurveyActivity** walks
+through it and saves the answers.
+
 Traces
 ---
 
-Echo writes two kinds of trace into a shared `Echo` directory at the root of external storage,
+Echo writes several kinds of trace into a shared `Echo` directory at the root of external storage,
 falling back to app storage when that cannot be written to. Every save writes
 `yyyyMMdd_HHmmss.wav`, named after the wall clock time of its first sample, with a `_2`, `_3`...
 suffix when that second already has a file. With GPS logging on, the fixes taken while that
 audio was captured are written as `yyyyMMdd_HHmmss.gpx` under exactly the same name, so a
 recording and its track are easy to pair up.
 
+Shake capture writes `yyyyMMdd_HHmmss_back.mp4` and `_front.mp4`, screenshots `_screen.jpg`, a
+written note `_note.txt` and a filled-in survey `_survey.json`, all stamped the same way: the
+leading timestamp is what places any of them on the timeline.
+
 They are independent files throughout: each is listed, opened and deleted on its own, and
-deleting one never touches the other. **Traces** lists both kinds, and still reads the old
-`Music/Echo` directory so traces recorded before 2.2 stay visible.
+deleting one never touches the others. **Traces** lists every kind, reads notes and surveys on
+the spot rather than handing them to another app, and still reads the old `Music/Echo` directory
+so traces recorded before 2.2 stay visible. Older `_back.jpg` and `_front.jpg` stills from before
+clips replaced them are still listed and still uploaded.
 
 Sharing the microphone
 ---
@@ -39,3 +64,74 @@ allows that at all, and watches `AudioManager.AudioRecordingCallback` to know wh
 silenced rather than writing digital zeros and calling them a recording. The moment the input is
 free again the `AudioRecord` is opened afresh, and a watchdog reopens it anyway if audio simply
 stops arriving, so a microphone borrowed by another app never leaves Echo permanently deaf.
+
+Asking for a clip
+---
+
+A clip is recorded when the phone is shaken hard and *then* held still for a second, within ten
+seconds of the shake. Both halves are the point. An angle was the obvious trigger and the wrong
+one: a phone carried upright in a pocket sits past any threshold for hours, so it filmed the
+inside of the pocket all day. Shaking alone is not enough either, since walking and knocks produce
+swings of their own — the shake is counted as four swings past the threshold within a second and a
+half, and how hard those swings have to be is the one setting.
+
+A gesture with no answer cannot be learnt, and this one has nothing to show for itself: no
+preview, no shutter sound, and often no screen on. So the phone talks back through its vibrator,
+three times per gesture, in shapes that can be told apart through a pocket:
+
+| felt | means |
+| --- | --- |
+| two quick taps | a clip has started recording |
+| one long buzz | a clip is on disk |
+| two long buzzes | the gesture produced no file at all |
+
+So a gesture is bracketed: one buzz when recording starts, one when it is over. The last two are
+the same slot — a gesture ends with one or the other, never both — and a gesture that filled two
+cameras still says each once. The amplitudes are asked for outright rather than
+borrowed from the system's own haptics, which are tuned to be barely there.
+
+Vibrating while reading the accelerometer needs care, because the motor shakes the very sensor the
+gesture is read off: left alone, a buzz would be counted as swings towards the next shake. So
+`buzz` puts the accelerometer aside for as long as the motor will run plus a moment to settle, and
+those samples are dropped rather than read, since the only thing that moved the phone in that
+window was the phone.
+
+Stillness is what makes the gesture cheap to be wrong about. Whatever is worth filming is what the
+phone is pointed at once it stops moving, and a phone being carried never stops moving: movement
+has to stay under 0.8 m/s² for a full second, which a pocket on a walking person never manages.
+The accelerometer's magnitude is compared against one g, so no orientation is needed: at rest it
+reads near zero however the phone is lying, a few m/s² while it is carried, tens while it is shaken.
+
+Hearing a word
+---
+
+Keyword detection is fed the samples the ring buffer has just taken, never a microphone of its
+own: one app holds the input at a time, so a recogniser in another app (which is where
+`SpeechRecognizer` runs) would silence the very recording it is meant to annotate. Recognition is
+Vosk, offline, against a model in `assets/vosk-model`; the recogniser is built with a grammar of
+just the words being listened for plus `[unk]`, which is what makes a small model usable for
+spotting one word.
+
+The model is tens of megabytes and is **not in this repository**. Without it the app builds and
+runs, the settings screen says there is no model, and nothing is recognised. To switch the
+feature on, unpack a Vosk model (e.g. `vosk-model-small-es-0.42`) so that
+`SaidIt/src/main/assets/vosk-model/` holds its `am`, `conf`, `graph`... directories directly.
+
+The recogniser is told the rate capture is actually running at and resamples internally, so a
+sample rate change (which restarts capture, and with it the detector) is handled. Low power mode
+is the exception worth knowing about: at 8 kHz there is simply less of the word left to
+recognise, and detection gets noticeably worse.
+
+Audio only reaches the detector when the capture loop reads it, and that loop otherwise sleeps
+until the `AudioRecord` buffer is nearly full — twenty seconds at 48 kHz. That sleep is an
+optimisation nothing else needed to give up, but an alarm answering a word most of a buffer later
+is not an alarm, so while a keyword is being listened for, reads are capped at two seconds apart
+and that gap is how late an alert can be.
+
+Reading that often is not where the battery goes. Capture holds the audio path awake either way,
+an ordinary recorder reads its microphone every few tens of milliseconds rather than every twenty
+seconds, and each read is one memcpy. The cost is the recognition, and it is the same work however
+the audio is sliced — so what is worth avoiding is recognising audio that cannot hold a word.
+`KeywordDetector.feed` therefore drops a chunk whose loudest sample never reaches about -35 dBFS
+before it is ever queued: in a quiet room nearly everything is dropped and listening costs close
+to what recording costs, and in a room full of talking it costs what recognising talking costs.

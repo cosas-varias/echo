@@ -12,11 +12,16 @@ public class SaidIt {
     static final String LOW_POWER_KEY = "low_power";
     static final String GPS_ENABLED_KEY = "gps_enabled";
     static final String PRE_LOW_POWER_SAMPLE_RATE_KEY = "pre_low_power_sample_rate";
-    /** Take a photo from both cameras whenever the phone is tilted past the threshold below. */
+    /** Record a clip from both cameras whenever the phone is shaken and then held still. */
     static final String CAMERA_ENABLED_KEY = "camera_capture_enabled";
-    static final String TILT_THRESHOLD_KEY = "tilt_threshold_degrees";
-    /** Degrees of tilt away from lying flat that triggers a capture. */
-    static final int TILT_THRESHOLD_DEFAULT = 45;
+    /** How hard the shake has to be, as an index: 0 gentle, 1 normal, 2 vigorous. */
+    static final String SHAKE_LEVEL_KEY = "shake_level";
+    static final int SHAKE_LEVEL_DEFAULT = 1;
+    /** Whether the front camera takes part at all, or only the back one does. */
+    static final String CAMERA_FRONT_ENABLED_KEY = "camera_front_enabled";
+    /** How many seconds each clip lasts. */
+    static final String CLIP_SECONDS_KEY = "camera_clip_seconds";
+    static final int CLIP_SECONDS_DEFAULT = 3;
     /** Shortest seconds between two captures, kept apart for each of the three kinds. */
     static final String CAMERA_MIN_BACK_KEY = "camera_min_back_seconds";
     static final String CAMERA_MIN_FRONT_KEY = "camera_min_front_seconds";
@@ -24,6 +29,12 @@ public class SaidIt {
     static final int CAMERA_MIN_BACK_DEFAULT = 8;
     static final int CAMERA_MIN_FRONT_DEFAULT = 8;
     static final int SCREENSHOT_MIN_DEFAULT = 60;
+    /** Listen for a spoken word in the captured audio and sound an alert when it is heard. */
+    static final String KEYWORD_ENABLED_KEY = "keyword_enabled";
+    static final String KEYWORD_WORDS_KEY = "keyword_words";
+    static final String KEYWORD_WORDS_DEFAULT = "móvil";
+    /** Directory inside assets holding the offline speech model the detector needs. */
+    static final String KEYWORD_MODEL_ASSET = "vosk-model";
     /** Send saved traces to a server and delete them once accepted. */
     static final String UPLOAD_ENABLED_KEY = "upload_enabled";
     static final String UPLOAD_URL_KEY = "upload_url";

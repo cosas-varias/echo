@@ -15,8 +15,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
-    <!-- Optional tilt-triggered camera capture. Used only from the foreground service. -->
+    <!-- Optional shake-triggered camera capture. Used only from the foreground service. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- A short tick confirms a clip has started recording, since nothing else can. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
@@ -36,6 +38,7 @@
         <activity
             android:name=".SaidItActivity"
             android:label="@string/app_name"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -67,8 +70,9 @@
         </activity>
 
         <activity
-            android:name=".SettingsActivity"
-            android:parentActivityName=".SaidItActivity" >
+            android:name=".SurveyActivity"
+            android:parentActivityName=".SaidItActivity"
+            android:windowSoftInputMode="adjustResize" >
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value="SaidItActivity" />

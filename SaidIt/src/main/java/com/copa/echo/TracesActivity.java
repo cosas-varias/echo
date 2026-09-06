@@ -312,7 +312,7 @@ public class TracesActivity extends Activity {
         }
     }
 
-    /** "25 traces (6 audio, 6 GPS, 13 photos)", dropping the breakdown when there is one kind. */
+    /** "25 traces (6 audio, 6 GPS, 13 clips)", dropping the breakdown when there is one kind. */
     private String countLabel(List<Traces.Entry> entries) {
         final int total = entries.size();
         final String count = getResources().getQuantityString(
@@ -320,11 +320,17 @@ public class TracesActivity extends Activity {
         final int audio = Traces.countOf(entries, Traces.Kind.AUDIO);
         final int location = Traces.countOf(entries, Traces.Kind.LOCATION);
         final int image = Traces.countOf(entries, Traces.Kind.IMAGE);
+        final int video = Traces.countOf(entries, Traces.Kind.VIDEO);
+        final int note = Traces.countOf(entries, Traces.Kind.NOTE);
+        final int survey = Traces.countOf(entries, Traces.Kind.SURVEY);
 
         final List<String> parts = new ArrayList<String>();
         if (audio > 0) parts.add(getString(R.string.traces_kind_audio, audio));
         if (location > 0) parts.add(getString(R.string.traces_kind_gps, location));
         if (image > 0) parts.add(getString(R.string.traces_kind_images, image));
+        if (video > 0) parts.add(getString(R.string.traces_kind_videos, video));
+        if (note > 0) parts.add(getString(R.string.traces_kind_notes, note));
+        if (survey > 0) parts.add(getString(R.string.traces_kind_surveys, survey));
         if (parts.size() <= 1) return count;
 
         final StringBuilder joined = new StringBuilder();
@@ -409,6 +415,12 @@ public class TracesActivity extends Activity {
     }
 
     private void open(Traces.Entry entry) {
+        // Written traces are a few lines of text Echo itself produced, and asking another app to
+        // display them is a detour: read them right here instead.
+        if (entry.kind == Traces.Kind.NOTE || entry.kind == Traces.Kind.SURVEY) {
+            showText(entry);
+            return;
+        }
         final File file = entry.file;
         try {
             final Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".provider", file);
@@ -421,20 +433,65 @@ public class TracesActivity extends Activity {
             final int message;
             if (entry.kind == Traces.Kind.AUDIO) message = R.string.traces_cant_open;
             else if (entry.kind == Traces.Kind.IMAGE) message = R.string.traces_cant_open_image;
+            else if (entry.kind == Traces.Kind.VIDEO) message = R.string.traces_cant_open_video;
             else message = R.string.traces_cant_open_track;
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** Shows a note or a survey as the text it is, without leaving the screen. */
+    private void showText(Traces.Entry entry) {
+        String text;
+        try {
+            text = readText(entry.file);
+        } catch (Exception e) {
+            Log.w(TAG, "Can't read " + entry.file.getName(), e);
+            Toast.makeText(this, R.string.traces_cant_read, Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (entry.kind == Traces.Kind.SURVEY) text = Survey.readable(text);
+        new AlertDialog.Builder(this)
+                .setTitle(entry.file.getName())
+                .setMessage(text)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
+    }
+
+    private static String readText(File file) throws java.io.IOException {
+        final java.io.InputStream in = new java.io.FileInputStream(file);
+        try {
+            final byte[] bytes = new byte[(int) Math.min(file.length(), 256 * 1024)];
+            int read = 0;
+            while (read < bytes.length) {
+                final int got = in.read(bytes, read, bytes.length - read);
+                if (got < 0) break;
+                read += got;
+            }
+            return new String(bytes, 0, read, "UTF-8");
+        } finally {
+            in.close();
         }
     }
 
     private static String mimeOf(Traces.Entry entry) {
         if (entry.kind == Traces.Kind.AUDIO) return "audio/wav";
         if (entry.kind == Traces.Kind.LOCATION) return "application/gpx+xml";
+        if (entry.kind == Traces.Kind.VIDEO) return "video/mp4";
+        if (entry.kind == Traces.Kind.NOTE) return "text/plain";
+        if (entry.kind == Traces.Kind.SURVEY) return "application/json";
         return entry.file.getName().toLowerCase(Locale.US).endsWith(".png") ? "image/png" : "image/jpeg";
     }
 
-    /** The label an image trace shows, told apart by the suffix its capturer wrote. */
-    private String imageKindLabel(File file) {
-        final String name = file.getName().toLowerCase(Locale.US);
+    /** The label a trace shows for itself, told apart by the suffix its capturer wrote. */
+    private String kindLabel(Traces.Entry entry) {
+        final String name = entry.file.getName().toLowerCase(Locale.US);
+        if (entry.kind == Traces.Kind.NOTE) return getString(R.string.traces_note_label);
+        if (entry.kind == Traces.Kind.SURVEY) return getString(R.string.traces_survey_label);
+        if (entry.kind == Traces.Kind.VIDEO) {
+            if (name.contains("_front.")) return getString(R.string.traces_video_front);
+            if (name.contains("_back.")) return getString(R.string.traces_video_back);
+            return getString(R.string.traces_video_generic);
+        }
         if (name.contains("_screen.")) return getString(R.string.traces_image_screen);
         if (name.contains("_front.")) return getString(R.string.traces_image_front);
         if (name.contains("_back.")) return getString(R.string.traces_image_back);
@@ -488,8 +545,12 @@ public class TracesActivity extends Activity {
             final String end = timeFormat.format(new Date(entry.endMillis));
             final String approx = entry.exactStart ? "" : "~";
 
-            // An image is an instant, so it shows a single time rather than a start → end range.
-            final String range = entry.kind == Traces.Kind.IMAGE
+            // A photo, a note and a survey are instants, so they show a single time rather than
+            // a start → end range.
+            final boolean instant = entry.kind == Traces.Kind.IMAGE
+                    || entry.kind == Traces.Kind.NOTE
+                    || entry.kind == Traces.Kind.SURVEY;
+            final String range = instant
                     ? getString(R.string.traces_item_moment, approx, dayLabel(entry.startMillis), start)
                     : getString(R.string.traces_item_range, approx, dayLabel(entry.startMillis), start, end);
             ((TextView) view.findViewById(R.id.trace_range)).setText(range);
@@ -500,9 +561,12 @@ public class TracesActivity extends Activity {
             if (entry.kind == Traces.Kind.AUDIO) {
                 detail = getString(R.string.traces_item_detail, duration, size,
                         entry.sampleRate / 1000, entry.file.getName());
-            } else if (entry.kind == Traces.Kind.IMAGE) {
+            } else if (entry.kind == Traces.Kind.VIDEO) {
+                detail = getString(R.string.traces_item_detail_video, kindLabel(entry),
+                        duration, size, entry.file.getName());
+            } else if (instant) {
                 detail = getString(R.string.traces_item_detail_image,
-                        imageKindLabel(entry.file), size, entry.file.getName());
+                        kindLabel(entry), size, entry.file.getName());
             } else {
                 detail = getString(R.string.traces_item_detail_gps, duration, size, entry.file.getName());
             }

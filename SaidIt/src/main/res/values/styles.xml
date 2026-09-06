@@ -116,4 +116,34 @@
         <item name="android:textColor">@color/gray_8</item>
         <item name="android:textSize">@dimen/small_text_size</item>
     </style>
+
+    <!-- A foldable group of settings on the main screen: a header that says what the group is
+         and how it currently stands, and a body that is only unfolded when it is being changed. -->
+
+    <style name="SectionHeader">
+        <item name="android:background">@color/gray_2</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingLeft">14dp</item>
+        <item name="android:paddingRight">14dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+        <item name="android:layout_marginTop">2dp</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <style name="SectionTitle" parent="TextBase">
+        <item name="android:gravity">left</item>
+    </style>
+
+    <style name="SectionState" parent="SmallText">
+        <item name="android:textColor">@color/gray_a</item>
+    </style>
+
+    <style name="SectionBody">
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingTop">4dp</item>
+        <item name="android:paddingBottom">14dp</item>
+        <item name="android:visibility">gone</item>
+    </style>
 </resources>

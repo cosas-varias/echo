@@ -148,7 +148,9 @@ public class TraceUploader {
                 if(!file.isFile()) continue;
                 final String name = file.getName().toLowerCase(Locale.US);
                 if(!(name.endsWith(".wav") || name.endsWith(".gpx")
-                        || name.endsWith(".jpg") || name.endsWith(".png"))) continue;
+                        || name.endsWith(".jpg") || name.endsWith(".png")
+                        || name.endsWith(".mp4") || name.endsWith(".txt")
+                        || name.endsWith(".json"))) continue;
                 if(now - file.lastModified() < MIN_AGE_MILLIS) continue;
                 out.add(file);
             }
@@ -193,6 +195,9 @@ public class TraceUploader {
         if(name.endsWith(".gpx")) return "application/gpx+xml";
         if(name.endsWith(".jpg")) return "image/jpeg";
         if(name.endsWith(".png")) return "image/png";
+        if(name.endsWith(".mp4")) return "video/mp4";
+        if(name.endsWith(".txt")) return "text/plain; charset=utf-8";
+        if(name.endsWith(".json")) return "application/json";
         return "application/octet-stream";
     }
 

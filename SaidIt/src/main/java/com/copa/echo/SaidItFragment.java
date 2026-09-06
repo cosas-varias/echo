@@ -1,9 +1,11 @@
 package com.copa.echo;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.Fragment;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.res.Resources;
@@ -19,9 +21,13 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.util.Log;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 
 import java.io.File;
 import java.util.Date;
@@ -30,6 +36,15 @@ import com.copa.echo.android.Fonts;
 import com.copa.echo.android.TimeFormat;
 import com.copa.echo.android.Views;
 
+/**
+ * The whole of Echo on one screen: what it is capturing right now, the things you do with that,
+ * and every setting underneath in folding sections, see {@link SettingsPanel}. Traces, the
+ * questionnaire and diagnostics are the only screens of their own.
+ *
+ * This half owns what changes by itself and is therefore redrawn on a timer; the settings half
+ * is redrawn only when something is actually changed, so that a field being typed into is never
+ * overwritten underneath the cursor.
+ */
 public class SaidItFragment extends Fragment {
 
     private static final String TAG = SaidItFragment.class.getSimpleName();
@@ -60,6 +75,8 @@ public class SaidItFragment extends Fragment {
     private TextView warningBox;
     private Button lowPowerButton;
 
+    private SettingsPanel settings;
+
     private Animation dotPulse;
     /** Whether the pulsing dot is currently animating, so we only start/stop it on real changes. */
     private boolean dotPulsing = false;
@@ -67,6 +84,11 @@ public class SaidItFragment extends Fragment {
     private Boolean shownListening = null;
 
     SaidItService echo;
+
+    /** The service, once bound, for the settings half of the screen. */
+    SaidItService service() {
+        return echo;
+    }
 
     @Override
     public void onStart() {
@@ -85,6 +107,8 @@ public class SaidItFragment extends Fragment {
         assert activity != null;
         final View view = getView();
         if (view != null) view.removeCallbacks(updater);
+        // Whatever is typed into a field is only in the field until now.
+        if (settings != null) settings.save();
         activity.unbindService(echoConnection);
         echo = null;
     }
@@ -104,11 +128,15 @@ public class SaidItFragment extends Fragment {
         public void onServiceConnected(ComponentName className, IBinder binder) {
             Log.d(TAG, "onServiceConnected");
             SaidItService.BackgroundRecorderBinder typedBinder = (SaidItService.BackgroundRecorderBinder) binder;
-            if (echo != null && echo == typedBinder.getService()) {
+            final boolean sameService = echo != null && echo == typedBinder.getService();
+            echo = typedBinder.getService();
+            // The settings half is drawn from the service, so it cannot be drawn before there is
+            // one; this is that moment, and every later redraw follows a change we made ourselves.
+            if (settings != null) settings.sync();
+            if (sameService) {
                 Log.d(TAG, "update loop already running, skipping");
                 return;
             }
-            echo = typedBinder.getService();
             final View view = getView();
             if (view != null) view.post(updater);
         }
@@ -140,7 +168,8 @@ public class SaidItFragment extends Fragment {
                     final int shadowColor = button.getShadowColor();
                     button.setShadowLayer(0.01f, 0, density * 2, shadowColor);
                 } else if (view instanceof TextView) {
-                    ((TextView) view).setTypeface(robotoCondensedRegular);
+                    ((TextView) view).setTypeface("bold".equals(view.getTag())
+                            ? robotoCondensedBold : robotoCondensedRegular);
                 }
             }
         });
@@ -191,13 +220,21 @@ public class SaidItFragment extends Fragment {
             public void onClick(View v) {
                 if (echo == null) return;
                 echo.setLowPowerEnabled(!echo.isLowPowerEnabled());
+                if (settings != null) settings.sync();
             }
         });
 
-        rootView.findViewById(R.id.diagnostics_button).setOnClickListener(new View.OnClickListener() {
+        rootView.findViewById(R.id.note_button).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startActivity(new Intent(activity, DiagnosticsActivity.class));
+                promptForNote();
+            }
+        });
+
+        rootView.findViewById(R.id.survey_button).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(activity, SurveyActivity.class));
             }
         });
 
@@ -208,14 +245,80 @@ public class SaidItFragment extends Fragment {
             }
         });
 
-        rootView.findViewById(R.id.settings_button).setOnClickListener(new View.OnClickListener() {
+        rootView.findViewById(R.id.diagnostics_button).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startActivity(new Intent(activity, SettingsActivity.class));
+                startActivity(new Intent(activity, DiagnosticsActivity.class));
             }
         });
 
+        settings = new SettingsPanel(this, (ViewGroup) rootView);
+
         return rootView;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (settings != null) settings.onRequestPermissionsResult(requestCode, grantResults);
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (settings != null) settings.onActivityResult(requestCode, resultCode, data);
+    }
+
+    /**
+     * Asks for a note and writes it beside the recordings. A note is worth keeping whether or not
+     * audio is being captured, so this does not wait for listening to be on.
+     */
+    private void promptForNote() {
+        final Activity activity = getActivity();
+        if (activity == null || echo == null) return;
+
+        final EditText field = new EditText(activity);
+        field.setHint(R.string.note_hint);
+        field.setMinLines(3);
+        field.setGravity(android.view.Gravity.TOP);
+        field.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        field.setTypeface(Fonts.regular(activity));
+
+        final int padding = (int) (16 * activity.getResources().getDisplayMetrics().density);
+        final FrameLayout frame = new FrameLayout(activity);
+        frame.setPadding(padding, padding, padding, 0);
+        frame.addView(field);
+
+        new AlertDialog.Builder(activity)
+                .setTitle(R.string.note_title)
+                .setView(frame)
+                .setPositiveButton(R.string.note_save, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        saveNote(field.getText().toString().trim());
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void saveNote(String text) {
+        final Activity activity = getActivity();
+        if (activity == null || echo == null || text.isEmpty()) return;
+        echo.saveNote(text, new SaidItService.TextTraceReceiver() {
+            @Override
+            public void traceWritten(File file) {
+                final Activity current = getActivity();
+                if (current == null || current.isFinishing()) return;
+                Toast.makeText(current, file == null
+                                ? current.getString(R.string.note_cant_save)
+                                : current.getString(R.string.note_saved, file.getName()),
+                        Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void toggleListening() {
@@ -251,20 +354,26 @@ public class SaidItFragment extends Fragment {
     private final SaidItService.StateCallback serviceStateCallback = new SaidItService.StateCallback() {
         @Override
         public void state(SaidItService.State state) {
-            final Activity activity = getActivity();
             final View view = getView();
-            if (activity == null || view == null) return;
-            final Resources resources = activity.getResources();
-
-            drawBanner(resources, state);
-            drawWarning(resources, state);
-            drawMemory(resources, state);
-            drawAutoSave(resources, activity, state);
-            drawLowPower(state);
-
+            if (view == null) return;
+            redraw(state);
+            if (settings != null) settings.refreshNotes();
             view.postDelayed(updater, state.lowPower ? REFRESH_MILLIS_LOW_POWER : REFRESH_MILLIS);
         }
     };
+
+    /** Draws everything that changes by itself. Also called after a settings change. */
+    void redraw(SaidItService.State state) {
+        final Activity activity = getActivity();
+        if (activity == null || getView() == null) return;
+        final Resources resources = activity.getResources();
+
+        drawBanner(resources, state);
+        drawWarning(resources, state);
+        drawMemory(resources, state);
+        drawAutoSave(resources, activity, state);
+        drawLowPower(state);
+    }
 
     private void drawBanner(Resources resources, SaidItService.State state) {
         final boolean listening = state.listeningEnabled;

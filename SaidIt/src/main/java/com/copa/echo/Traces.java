@@ -43,7 +43,7 @@ public class Traces {
     public static final long DEFAULT_MAX_GAP_MILLIS = 5000;
 
     /** What a trace is a trace of. */
-    public enum Kind { AUDIO, LOCATION, IMAGE }
+    public enum Kind { AUDIO, LOCATION, IMAGE, VIDEO, NOTE, SURVEY }
 
     public static class Entry {
         public File file;
@@ -101,7 +101,13 @@ public class Traces {
             } else if (name.endsWith(".gpx")) {
                 entry = readLocationEntry(file);
             } else if (name.endsWith(".jpg") || name.endsWith(".png")) {
-                entry = readImageEntry(file);
+                entry = readInstantEntry(file, Kind.IMAGE);
+            } else if (name.endsWith(".mp4")) {
+                entry = readVideoEntry(file);
+            } else if (name.endsWith(".txt")) {
+                entry = readInstantEntry(file, Kind.NOTE);
+            } else if (name.endsWith(".json")) {
+                entry = readInstantEntry(file, Kind.SURVEY);
             } else {
                 continue;
             }
@@ -204,28 +210,67 @@ public class Traces {
     }
 
     /**
-     * A photo or a screenshot is a single instant, not a stretch: it has no duration, so its start
-     * and end are the same moment, taken from the file name or, failing that, its mtime.
+     * A screenshot, a note or a filled-in survey is a single instant, not a stretch: it has no
+     * duration, so its start and end are the same moment, taken from the file name or, failing
+     * that, its mtime.
      */
-    private static Entry readImageEntry(File file) {
+    private static Entry readInstantEntry(File file, Kind kind) {
         final Entry entry = new Entry();
         entry.file = file;
-        entry.kind = Kind.IMAGE;
+        entry.kind = kind;
         entry.sizeBytes = file.length();
         entry.durationSeconds = 0;
+        stampFromName(entry);
+        entry.endMillis = entry.startMillis;
+        return entry;
+    }
 
-        // Image names carry a text suffix (_back, _front, _screen) the audio names never do, so
-        // the timestamp is read from the front of the name rather than by matching the whole of it.
-        final Long namedStart = parseLeadingTimestamp(file.getName());
+    /**
+     * A clip covers the seconds it was recorded over, and only the file itself knows how many
+     * those were. Reading that costs one metadata open per clip, which is why it happens on the
+     * scanning thread and not while a list is being drawn.
+     */
+    private static Entry readVideoEntry(File file) {
+        final Entry entry = new Entry();
+        entry.file = file;
+        entry.kind = Kind.VIDEO;
+        entry.sizeBytes = file.length();
+        entry.durationSeconds = durationOf(file) / 1000f;
+        stampFromName(entry);
+        entry.endMillis = entry.startMillis + (long) (entry.durationSeconds * 1000);
+        return entry;
+    }
+
+    private static long durationOf(File file) {
+        final android.media.MediaMetadataRetriever retriever =
+                new android.media.MediaMetadataRetriever();
+        try {
+            retriever.setDataSource(file.getAbsolutePath());
+            final String millis = retriever.extractMetadata(
+                    android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
+            return millis == null ? 0 : Long.parseLong(millis);
+        } catch (Exception e) {
+            Log.w(TAG, "Can't read the length of " + file.getName() + ": " + e.getMessage());
+            return 0;
+        } finally {
+            try { retriever.release(); } catch (Exception ignore) { }
+        }
+    }
+
+    /**
+     * Places a trace in time by its name. These names carry a text suffix (_back, _front, _screen,
+     * _note, _survey) the audio names never do, so the timestamp is read from the front of the
+     * name rather than by matching the whole of it, and falls back to the mtime.
+     */
+    private static void stampFromName(Entry entry) {
+        final Long namedStart = parseLeadingTimestamp(entry.file.getName());
         if (namedStart != null) {
             entry.startMillis = namedStart;
             entry.exactStart = true;
         } else {
-            entry.startMillis = file.lastModified();
+            entry.startMillis = entry.file.lastModified();
             entry.exactStart = false;
         }
-        entry.endMillis = entry.startMillis;
-        return entry;
     }
 
     private static final Pattern LEADING_TIME_PATTERN = Pattern.compile("^(\\d{8}_\\d{6})");

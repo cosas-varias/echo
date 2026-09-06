@@ -64,6 +64,20 @@ public class SaidItService extends Service {
      */
     private static final long MAX_READ_INTERVAL_MILLIS = 30000;
 
+    /**
+     * Longest the capture loop may sleep while a keyword is being listened for. Audio only reaches
+     * the detector when it is read, so the wait between reads is also how late an alert can be: at
+     * the normal interval a word could be answered most of a buffer later, which is no alarm at
+     * all.
+     *
+     * Reading this often is not what a listening Echo spends its battery on. Capture holds the
+     * audio path awake either way, an ordinary recorder reads its microphone every few tens of
+     * milliseconds, and each read here is one memcpy. What costs is recognising the audio, which
+     * is the same work however it is sliced, and which {@link KeywordDetector} skips outright when
+     * a stretch is near silent.
+     */
+    private static final long KEYWORD_READ_INTERVAL_MILLIS = 2000;
+
     /** How often the microphone is checked for being closed, stalled or handed back. */
     private static final long CAPTURE_WATCHDOG_MILLIS = 15000;
     private static final long CAPTURE_WATCHDOG_MILLIS_LOW_POWER = 30000;
@@ -143,10 +157,14 @@ public class SaidItService extends Service {
     private volatile boolean lowPower = false;
     private volatile long memorySizePref = 0;
     private volatile boolean cameraEnabled = false;
-    private volatile int tiltThresholdDegrees = TILT_THRESHOLD_DEFAULT;
+    private volatile int shakeLevel = SHAKE_LEVEL_DEFAULT;
+    private volatile boolean frontCameraEnabled = true;
+    private volatile int clipSeconds = CLIP_SECONDS_DEFAULT;
     private volatile int cameraMinBackSeconds = CAMERA_MIN_BACK_DEFAULT;
     private volatile int cameraMinFrontSeconds = CAMERA_MIN_FRONT_DEFAULT;
     private volatile int screenshotMinSeconds = SCREENSHOT_MIN_DEFAULT;
+    private volatile boolean keywordEnabled = false;
+    private volatile String keywordWords = KEYWORD_WORDS_DEFAULT;
     private volatile boolean uploadEnabled = false;
     private volatile String uploadUrl = "";
     /**
@@ -155,12 +173,16 @@ public class SaidItService extends Service {
      */
     private volatile boolean screenshotEnabled = false;
 
-    /** Optional tilt-triggered camera capture, GPS-style: off unless the user turns it on. */
-    private TiltCameraCapturer cameraCapturer;
+    /** Optional shake-triggered camera capture, GPS-style: off unless the user turns it on. */
+    private ShakeCameraCapturer cameraCapturer;
     /** Optional MediaProjection screenshots, alive only while the user keeps them on. */
     private ScreenCapturer screenCapturer;
     /** Sends saved traces to a server and deletes them once accepted. */
     private TraceUploader uploader;
+    /** Optional spoken keyword detection, fed from the audio capture below. */
+    private KeywordDetector keywordDetector;
+    /** The alert a heard keyword sounds. Built on first use, main thread only. */
+    private android.media.Ringtone alertRingtone;
 
     /**
      * Both visual capturers want the same two things: where to write, and a nudge to the uploader
@@ -169,7 +191,7 @@ public class SaidItService extends Service {
      */
     private final CaptureListener captureListener = new CaptureListener();
 
-    private final class CaptureListener implements TiltCameraCapturer.Listener, ScreenCapturer.Listener {
+    private final class CaptureListener implements ShakeCameraCapturer.Listener, ScreenCapturer.Listener {
         @Override
         public File tracesDir() {
             return getTracesDir();
@@ -207,10 +229,14 @@ public class SaidItService extends Service {
         lowPower = preferences.getBoolean(LOW_POWER_KEY, false);
         gpsEnabled = preferences.getBoolean(GPS_ENABLED_KEY, false);
         cameraEnabled = preferences.getBoolean(CAMERA_ENABLED_KEY, false);
-        tiltThresholdDegrees = preferences.getInt(TILT_THRESHOLD_KEY, TILT_THRESHOLD_DEFAULT);
+        shakeLevel = preferences.getInt(SHAKE_LEVEL_KEY, SHAKE_LEVEL_DEFAULT);
+        frontCameraEnabled = preferences.getBoolean(CAMERA_FRONT_ENABLED_KEY, true);
+        clipSeconds = preferences.getInt(CLIP_SECONDS_KEY, CLIP_SECONDS_DEFAULT);
         cameraMinBackSeconds = preferences.getInt(CAMERA_MIN_BACK_KEY, CAMERA_MIN_BACK_DEFAULT);
         cameraMinFrontSeconds = preferences.getInt(CAMERA_MIN_FRONT_KEY, CAMERA_MIN_FRONT_DEFAULT);
         screenshotMinSeconds = preferences.getInt(SCREENSHOT_MIN_KEY, SCREENSHOT_MIN_DEFAULT);
+        keywordEnabled = preferences.getBoolean(KEYWORD_ENABLED_KEY, false);
+        keywordWords = preferences.getString(KEYWORD_WORDS_KEY, KEYWORD_WORDS_DEFAULT);
         uploadEnabled = preferences.getBoolean(UPLOAD_ENABLED_KEY, false);
         uploadUrl = preferences.getString(UPLOAD_URL_KEY, "");
         memorySizePref = preferences.getLong(AUDIO_MEMORY_SIZE_KEY, Runtime.getRuntime().maxMemory() / 4);
@@ -231,8 +257,9 @@ public class SaidItService extends Service {
 
         uploader = new TraceUploader(this);
         uploader.configure(uploadEnabled, uploadUrl);
-        cameraCapturer = new TiltCameraCapturer(this, captureListener);
+        cameraCapturer = new ShakeCameraCapturer(this, captureListener);
         screenCapturer = new ScreenCapturer(this, captureListener);
+        keywordDetector = new KeywordDetector(this, keywordListener);
 
         // Probing the filesystem is disk work, so keep it off the main thread.
         audioHandler.post(new Runnable() {
@@ -260,6 +287,7 @@ public class SaidItService extends Service {
         innerStopListening(); // queues a last save of whatever is still in memory
         if(cameraCapturer != null) cameraCapturer.stop();
         if(screenCapturer != null) screenCapturer.stop();
+        if(keywordDetector != null) keywordDetector.stop();
         if(uploader != null) uploader.shutdown();
         stopForeground(true);
         // Lets the queued save run and only then ends the thread, instead of leaking one
@@ -332,8 +360,11 @@ public class SaidItService extends Service {
         armAutoSave();
         armCaptureWatchdog();
         startLocationUpdates();
-        if(cameraEnabled) cameraCapturer.start(tiltThresholdDegrees,
-                cameraMinBackSeconds * 1000L, cameraMinFrontSeconds * 1000L);
+        if(cameraEnabled) {
+            configureCameraCapturer();
+            cameraCapturer.start();
+        }
+        startKeywordDetection();
         logEvent(getString(R.string.event_listening_started, SAMPLE_RATE / 1000f));
     }
 
@@ -355,6 +386,8 @@ public class SaidItService extends Service {
         cameraCapturer.stop();
         screenCapturer.stop();
         screenshotEnabled = false;
+        // Keyword detection listens to the capture, so it ends with it.
+        keywordDetector.stop();
         Log.d(TAG, "Queueing: STOP LISTENING");
         logEvent(getString(R.string.event_listening_stopped));
 
@@ -511,6 +544,10 @@ public class SaidItService extends Service {
                 openAudioRecord();
             }
         });
+    }
+
+    private long maxReadIntervalMillis() {
+        return keywordEnabled ? KEYWORD_READ_INTERVAL_MILLIS : MAX_READ_INTERVAL_MILLIS;
     }
 
     private long captureWatchdogPeriodMillis() {
@@ -942,7 +979,7 @@ public class SaidItService extends Service {
                 == PackageManager.PERMISSION_GRANTED;
     }
 
-    // ------------------------------------------------------------------ tilt camera capture
+    // ------------------------------------------------------------------ shake camera capture
 
     public boolean isCameraEnabled() {
         return cameraEnabled;
@@ -953,14 +990,15 @@ public class SaidItService extends Service {
                 == PackageManager.PERMISSION_GRANTED;
     }
 
-    public int getTiltThresholdDegrees() {
-        return tiltThresholdDegrees;
+    public int getShakeLevel() {
+        return shakeLevel;
     }
 
-    public void setTiltThresholdDegrees(int degrees) {
-        tiltThresholdDegrees = Math.max(5, Math.min(175, degrees));
-        prefs().edit().putInt(TILT_THRESHOLD_KEY, tiltThresholdDegrees).apply();
-        if(cameraCapturer != null) cameraCapturer.setThresholdDegrees(tiltThresholdDegrees);
+    /** How hard the phone has to be shaken: 0 gentle, 1 normal, 2 vigorous. */
+    public void setShakeLevel(int level) {
+        shakeLevel = Math.max(0, Math.min(2, level));
+        prefs().edit().putInt(SHAKE_LEVEL_KEY, shakeLevel).apply();
+        configureCameraCapturer();
     }
 
     public int getCameraMinBackSeconds() {
@@ -971,7 +1009,7 @@ public class SaidItService extends Service {
         return cameraMinFrontSeconds;
     }
 
-    /** Sets the shortest gap between shots of each camera, applied live. */
+    /** Sets the shortest gap between clips of each camera, applied live. */
     public void setCameraMinIntervals(int backSeconds, int frontSeconds) {
         cameraMinBackSeconds = Math.max(0, backSeconds);
         cameraMinFrontSeconds = Math.max(0, frontSeconds);
@@ -979,13 +1017,41 @@ public class SaidItService extends Service {
                 .putInt(CAMERA_MIN_BACK_KEY, cameraMinBackSeconds)
                 .putInt(CAMERA_MIN_FRONT_KEY, cameraMinFrontSeconds)
                 .apply();
-        if(cameraCapturer != null) {
-            cameraCapturer.setMinIntervals(cameraMinBackSeconds * 1000L, cameraMinFrontSeconds * 1000L);
-        }
+        configureCameraCapturer();
+    }
+
+    public boolean isFrontCameraEnabled() {
+        return frontCameraEnabled;
+    }
+
+    /** Leaves the front camera out of every trigger, so only the back one records. */
+    public void setFrontCameraEnabled(boolean enabled) {
+        if(enabled == frontCameraEnabled) return;
+        frontCameraEnabled = enabled;
+        prefs().edit().putBoolean(CAMERA_FRONT_ENABLED_KEY, enabled).apply();
+        configureCameraCapturer();
+        logEvent(getString(enabled ? R.string.event_front_camera_on : R.string.event_front_camera_off));
+    }
+
+    public int getClipSeconds() {
+        return clipSeconds;
+    }
+
+    public void setClipSeconds(int seconds) {
+        clipSeconds = Math.max(1, Math.min(60, seconds));
+        prefs().edit().putInt(CLIP_SECONDS_KEY, clipSeconds).apply();
+        configureCameraCapturer();
+    }
+
+    /** Hands the capturer every setting that shapes a trigger, whether it is running or not. */
+    private void configureCameraCapturer() {
+        if(cameraCapturer == null) return;
+        cameraCapturer.configure(shakeLevel, cameraMinBackSeconds * 1000L,
+                cameraMinFrontSeconds * 1000L, frontCameraEnabled, clipSeconds);
     }
 
     /**
-     * Turns tilt-triggered capture on or off. Like GPS it declares a foreground service type, so
+     * Turns shake-triggered capture on or off. Like GPS it declares a foreground service type, so
      * turning it on re-declares the service before the camera is ever touched.
      */
     public void setCameraEnabled(boolean enabled) {
@@ -994,8 +1060,10 @@ public class SaidItService extends Service {
         prefs().edit().putBoolean(CAMERA_ENABLED_KEY, enabled).apply();
         if(enabled) {
             refreshForegroundType();
-            if(state == STATE_LISTENING) cameraCapturer.start(tiltThresholdDegrees,
-                    cameraMinBackSeconds * 1000L, cameraMinFrontSeconds * 1000L);
+            if(state == STATE_LISTENING) {
+                configureCameraCapturer();
+                cameraCapturer.start();
+            }
             logEvent(getString(R.string.event_camera_on));
         } else {
             cameraCapturer.stop();
@@ -1054,6 +1122,173 @@ public class SaidItService extends Service {
         refreshForegroundType();
         logEvent(getString(R.string.event_screenshot_off));
         updateNotification();
+    }
+
+    // ------------------------------------------------------------------ spoken keyword
+
+    public boolean isKeywordEnabled() {
+        return keywordEnabled;
+    }
+
+    public String getKeywordWords() {
+        return keywordWords;
+    }
+
+    /** What the detector is actually doing, which is what the settings screen reports. */
+    public KeywordDetector.Status getKeywordStatus() {
+        return keywordDetector == null ? KeywordDetector.Status.OFF : keywordDetector.getStatus();
+    }
+
+    /** True when a speech model was shipped with this build; without one nothing is recognised. */
+    public boolean hasKeywordModel() {
+        return keywordDetector != null && keywordDetector.hasModel();
+    }
+
+    public void setKeywordEnabled(boolean enabled) {
+        if(enabled == keywordEnabled) return;
+        keywordEnabled = enabled;
+        prefs().edit().putBoolean(KEYWORD_ENABLED_KEY, enabled).apply();
+        if(enabled) {
+            startKeywordDetection();
+            logEvent(getString(R.string.event_keyword_on));
+        } else {
+            keywordDetector.stop();
+            logEvent(getString(R.string.event_keyword_off));
+        }
+    }
+
+    /** The words to listen for, separated by commas or spaces. Restarts the detector. */
+    public void setKeywordWords(String words) {
+        final String cleaned = (words == null || words.trim().isEmpty())
+                ? KEYWORD_WORDS_DEFAULT : words.trim();
+        if(cleaned.equals(keywordWords)) return;
+        keywordWords = cleaned;
+        prefs().edit().putString(KEYWORD_WORDS_KEY, keywordWords).apply();
+        if(keywordEnabled) {
+            keywordDetector.stop();
+            startKeywordDetection();
+        }
+    }
+
+    /**
+     * Starts listening for the keyword in the audio being captured. Only worth doing while there
+     * is capture to listen to, and the recogniser is told the rate that capture actually runs at.
+     */
+    private void startKeywordDetection() {
+        if(!keywordEnabled || state != STATE_LISTENING) return;
+        keywordDetector.start(keywordWords, SAMPLE_RATE);
+    }
+
+    private final KeywordDetector.Listener keywordListener = new KeywordDetector.Listener() {
+        @Override
+        public void onKeyword(final String word) {
+            logEvent(getString(R.string.event_keyword_heard, word));
+            mainHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    soundAlert();
+                }
+            });
+        }
+    };
+
+    /** How long the alert a heard keyword sounds for. */
+    private static final long ALERT_MILLIS = 4000;
+
+    /**
+     * Sounds the alert, on the alarm stream so it is heard through a silenced ringer. Main thread
+     * only, and never more than one at a time: a second keyword restarts the same ringtone rather
+     * than layering another on top of it.
+     */
+    private void soundAlert() {
+        try {
+            if(alertRingtone == null) {
+                android.net.Uri uri = android.media.RingtoneManager
+                        .getDefaultUri(android.media.RingtoneManager.TYPE_ALARM);
+                if(uri == null) {
+                    uri = android.media.RingtoneManager
+                            .getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION);
+                }
+                if(uri == null) return;
+                alertRingtone = android.media.RingtoneManager.getRingtone(this, uri);
+                if(alertRingtone == null) return;
+                alertRingtone.setAudioAttributes(new android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build());
+            }
+            if(alertRingtone.isPlaying()) alertRingtone.stop();
+            alertRingtone.play();
+            mainHandler.removeCallbacks(alertStopper);
+            mainHandler.postDelayed(alertStopper, ALERT_MILLIS);
+        } catch (Exception e) {
+            Log.w(TAG, "Can't sound the alert: " + e.getMessage());
+        }
+    }
+
+    private final Runnable alertStopper = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                if(alertRingtone != null && alertRingtone.isPlaying()) alertRingtone.stop();
+            } catch (Exception ignore) { }
+        }
+    };
+
+    // ------------------------------------------------------------------ written traces
+
+    /** Where a written trace ends up, reported back on the main thread. Null means it failed. */
+    public interface TextTraceReceiver {
+        void traceWritten(File file);
+    }
+
+    /**
+     * Writes a note beside the recordings, named after the moment it was saved just like every
+     * other trace. The disk work goes to the audio thread, which is the one that owns saving.
+     */
+    public void saveNote(String text, TextTraceReceiver receiver) {
+        saveTextTrace(text, "note", ".txt", receiver);
+    }
+
+    /** Writes a filled-in survey, as the JSON the survey screen built. */
+    public void saveSurvey(String json, TextTraceReceiver receiver) {
+        saveTextTrace(json, "survey", ".json", receiver);
+    }
+
+    private void saveTextTrace(final String content, final String suffix, final String extension,
+                               final TextTraceReceiver receiver) {
+        audioHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                File written = null;
+                final File file = uniqueFile(getTracesDir(),
+                        timestampName(System.currentTimeMillis()) + "_" + suffix, extension);
+                try {
+                    final java.io.OutputStreamWriter writer = new java.io.OutputStreamWriter(
+                            new java.io.FileOutputStream(file), "UTF-8");
+                    try {
+                        writer.write(content);
+                    } finally {
+                        writer.close();
+                    }
+                    written = file;
+                    logEvent(getString(R.string.event_saved_text, file.getName()));
+                    if(uploader != null) uploader.kick();
+                } catch (IOException e) {
+                    Log.e(TAG, "Can't write " + file.getAbsolutePath(), e);
+                    recordError(getString(R.string.error_cant_write_text, file.getName()));
+                    file.delete();
+                }
+                if(receiver == null) return;
+                final File result = written;
+                mainHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        receiver.traceWritten(result);
+                    }
+                });
+            }
+        });
     }
 
     // ------------------------------------------------------------------ uploading
@@ -1222,6 +1457,9 @@ public class SaidItService extends Service {
                 lastReadElapsed = SystemClock.elapsedRealtime();
                 bytesCaptured += read;
                 consecutiveReadErrors = 0;
+                // The detector gets the same samples the ring buffer just took, so listening for
+                // a word costs no second microphone stream. It copies and returns.
+                if (keywordEnabled) keywordDetector.feed(array, offset, read);
             }
             if (read == count) {
                 // We've filled the buffer, so let's read again.
@@ -1236,7 +1474,7 @@ public class SaidItService extends Service {
                 delaySeconds = Math.max(delaySeconds, bufferSizeInSeconds * 0.5f);
                 delaySeconds = Math.min(delaySeconds, bufferSizeInSeconds * 0.9f);
                 audioHandler.postDelayed(audioReader,
-                        Math.min((long)(delaySeconds * 1000), MAX_READ_INTERVAL_MILLIS));
+                        Math.min((long)(delaySeconds * 1000), maxReadIntervalMillis()));
             }
             return read;
         }

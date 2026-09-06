@@ -273,5 +273,110 @@
     <string name="error_no_gps_provider">Este dispositivo no tiene proveedor de GPS, así que no se puede registrar ninguna traza.</string>
     <string name="error_cant_write_track">No se puede escribir la traza GPS en %1$s</string>
     <string name="error_cant_go_foreground">Android no ha permitido que Echo se ejecute en primer plano. Hay que arrancarlo desde la app, no desde segundo plano.</string>
+    <string name="error_cant_write_text">No se puede escribir %1$s</string>
+
+    <!-- Resúmenes de las cabeceras plegables, para leer toda la configuración de un vistazo -->
+
+    <string name="section_memory">Memoria y calidad</string>
+    <string name="state_on">activado</string>
+    <string name="state_off">desactivado</string>
+    <string name="state_low_power">bajo consumo</string>
+    <string name="state_loading">cargando…</string>
+    <string name="state_needs_permission">falta el permiso</string>
+    <string name="state_provider_off">el GPS está apagado</string>
+    <string name="state_no_model">sin modelo de voz</string>
+    <string name="state_seconds">clips de %1$d s</string>
+    <string name="state_every_seconds">cada %1$d s</string>
+    <string name="state_both_cameras">las dos cámaras</string>
+    <string name="state_back_camera">solo trasera</string>
+
+    <!-- Trazas de vídeo, notas y encuestas -->
+
+    <string name="traces_item_detail_image">%1$s · %2$s · %3$s</string>
+    <string name="traces_item_detail_video">%1$s · %2$s · %3$s · %4$s</string>
+    <string name="traces_item_moment">%1$s%2$s  %3$s</string>
+    <string name="traces_count_wrap">%1$s (%2$s)</string>
+    <string name="traces_kind_audio">%1$d de audio</string>
+    <string name="traces_kind_gps">%1$d GPS</string>
+    <string name="traces_kind_images">%1$d fotos</string>
+    <string name="traces_kind_videos">%1$d clips</string>
+    <string name="traces_kind_notes">%1$d notas</string>
+    <string name="traces_kind_surveys">%1$d encuestas</string>
+    <string name="traces_image_back">Foto trasera</string>
+    <string name="traces_image_front">Foto frontal</string>
+    <string name="traces_image_screen">Captura de pantalla</string>
+    <string name="traces_image_generic">Foto</string>
+    <string name="traces_video_back">Clip trasero</string>
+    <string name="traces_video_front">Clip frontal</string>
+    <string name="traces_video_generic">Clip</string>
+    <string name="traces_note_label">Nota</string>
+    <string name="traces_survey_label">Encuesta</string>
+    <string name="traces_cant_open_image">Ninguna app instalada puede abrir esta imagen.</string>
+    <string name="traces_cant_open_video">Ninguna app instalada puede reproducir este clip.</string>
+    <string name="traces_cant_read">No se pudo leer el archivo.</string>
+
+    <!-- Cámara al agitar -->
+
+    <string name="camera_title">Cámara al agitar</string>
+    <string name="camera_on">Captura al agitar: SÍ</string>
+    <string name="camera_off">Captura al agitar: no</string>
+    <string name="camera_description">Mientras Echo está grabando, agitar el móvil con fuerza y después dejarlo quieto un segundo graba un clip corto con la cámara trasera y otro con la frontal, sin vista previa, guardados junto al audio como archivos .mp4 sin sonido. Hacen falta las dos mitades, y eso es lo que evita que un móvil en el bolsillo grabe todo el día: agitarlo no hace nada hasta que se queda quieto, y estar quieto no hace nada si antes no lo agitaste. El móvil vibra dos veces por clip: dos toques rápidos cuando empieza a grabar y, al terminar, una vibración larga si quedó guardado o dos largas si no se grabó nada. Necesita el permiso de cámara.</string>
+    <string name="camera_permission_needed">Echo necesita el permiso de cámara para grabar al agitar.</string>
+    <string name="shake_level_title">Fuerza del agitado</string>
+    <string name="shake_level_gentle">Suave</string>
+    <string name="shake_level_normal">Normal</string>
+    <string name="shake_level_hard">Fuerte</string>
+    <string name="shake_level_description">Con cuánta fuerza hay que agitar el móvil para que grabe. Súbelo si graba solo mientras lo llevas encima; bájalo si no se entera cuando lo agitas.</string>
+    <string name="front_camera_title">Cámara frontal</string>
+    <string name="front_camera_on">Cámara frontal: SÍ</string>
+    <string name="front_camera_off">Cámara frontal: no</string>
+    <string name="front_camera_description">Desactívala para grabar solo con la trasera. La captura al agitar sigue funcionando; la frontal simplemente no participa.</string>
+    <string name="clip_seconds_title">Duración del clip (segundos)</string>
+    <string name="clip_seconds_description">Cuánto dura cada clip. Un clip corto es un archivo pequeño: tres segundos de una cámara ocupan alrededor de un megabyte.</string>
+    <string name="camera_min_title">Segundos mínimos entre clips</string>
+    <string name="camera_min_back_label">Cámara trasera (segundos)</string>
+    <string name="camera_min_front_label">Cámara frontal (segundos)</string>
+
+    <!-- Palabra clave hablada -->
+
+    <string name="keyword_title">Palabra clave hablada</string>
+    <string name="keyword_on">Aviso por palabra: SÍ</string>
+    <string name="keyword_off">Aviso por palabra: no</string>
+    <string name="keyword_words_hint">móvil</string>
+    <string name="keyword_description">Escucha las palabras de arriba en el audio que Echo ya está grabando y hace sonar una alarma cuando oye alguna, en un par de segundos. El reconocimiento se hace en el propio móvil, sin abrir un segundo micrófono y sin enviar nada a ningún sitio, y sigue funcionando con la pantalla apagada. Se pueden indicar varias palabras separadas por comas. Los tramos en silencio se descartan sin reconocerlos, así que en una habitación callada esto apenas gasta más que grabar, y bastante más donde hay conversación que escuchar.</string>
+    <string name="keyword_no_model">Esta compilación no incluye modelo de voz, así que no se puede reconocer nada. Hay que poner uno en assets/vosk-model.</string>
+    <string name="keyword_loading">Cargando el modelo de voz…</string>
+    <string name="keyword_error">No se pudo cargar el modelo de voz.</string>
+    <string name="keyword_needs_listening">Pon Echo a grabar: todavía no hay audio que escuchar.</string>
+
+    <!-- Notas y encuestas -->
+
+    <string name="note_button">Nota</string>
+    <string name="note_title">Nota nueva</string>
+    <string name="note_hint">¿Qué merece recordarse de ahora mismo?</string>
+    <string name="note_save">Guardar</string>
+    <string name="note_saved">Nota guardada como %1$s</string>
+    <string name="note_cant_save">No se pudo escribir la nota.</string>
+    <string name="survey_button">Cómo estoy</string>
+    <string name="survey_title">Estado emocional y físico</string>
+    <string name="survey_step">Pregunta %1$d</string>
+    <string name="survey_back">Atrás</string>
+    <string name="survey_cancel">Cancelar</string>
+    <string name="survey_continue">Continuar</string>
+    <string name="survey_save">Guardar</string>
+    <string name="survey_saved">Guardado como %1$s</string>
+    <string name="survey_cant_save">No se pudieron escribir las respuestas.</string>
+    <string name="survey_unavailable">No se pudo leer el cuestionario.</string>
+
+    <!-- Registro de eventos de lo anterior -->
+
+    <string name="event_camera_on">Captura al agitar activada</string>
+    <string name="event_camera_off">Captura al agitar desactivada</string>
+    <string name="event_front_camera_on">Cámara frontal incluida</string>
+    <string name="event_front_camera_off">Cámara frontal excluida</string>
+    <string name="event_keyword_on">Escucha de palabra clave activada</string>
+    <string name="event_keyword_off">Escucha de palabra clave desactivada</string>
+    <string name="event_keyword_heard">Se oyó \"%1$s\", suena el aviso</string>
+    <string name="event_saved_text">Escrito %1$s</string>
 
 </resources>

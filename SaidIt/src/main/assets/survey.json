@@ -1,0 +1,119 @@
+{
+  "title": "Estado emocional y físico",
+  "start": "inicio",
+  "nodes": {
+    "inicio": {
+      "type": "choice",
+      "question": "¿Cómo te encuentras ahora mismo?",
+      "options": [
+        { "label": "Bien", "next": "bien_apoyo" },
+        { "label": "Regular", "next": "ambito" },
+        { "label": "Mal", "next": "ambito" },
+        { "label": "Prefiero no decirlo", "next": "nota_final" }
+      ]
+    },
+    "bien_apoyo": {
+      "type": "choice",
+      "question": "¿Qué te está ayudando?",
+      "options": [
+        { "label": "Haber descansado", "next": "nota_final" },
+        { "label": "Estar acompañado/a", "next": "nota_final" },
+        { "label": "Haberme movido o salido", "next": "nota_final" },
+        { "label": "La medicación", "next": "nota_final" },
+        { "label": "No sé", "next": "nota_final" }
+      ]
+    },
+    "ambito": {
+      "type": "choice",
+      "question": "¿Es sobre todo físico o emocional?",
+      "options": [
+        { "label": "Físico", "next": "fisico_que" },
+        { "label": "Emocional", "next": "emocion_cual" },
+        { "label": "Las dos cosas", "next": "fisico_que" }
+      ]
+    },
+    "fisico_que": {
+      "type": "choice",
+      "question": "¿Qué notas en el cuerpo?",
+      "options": [
+        { "label": "Dolor", "next": "fisico_intensidad" },
+        { "label": "Cansancio", "next": "fisico_intensidad" },
+        { "label": "Mareo", "next": "fisico_intensidad" },
+        { "label": "Falta de aire", "next": "fisico_intensidad" },
+        { "label": "Náuseas", "next": "fisico_intensidad" },
+        { "label": "Otra cosa", "next": "fisico_intensidad" }
+      ]
+    },
+    "fisico_intensidad": {
+      "type": "scale",
+      "question": "¿Cuánta intensidad tiene?",
+      "min": 1,
+      "max": 5,
+      "minLabel": "Apenas",
+      "maxLabel": "Insoportable",
+      "next": "fisico_desde"
+    },
+    "fisico_desde": {
+      "type": "choice",
+      "question": "¿Desde cuándo lo notas?",
+      "options": [
+        { "label": "Minutos", "next": "seguir_emocional" },
+        { "label": "Horas", "next": "seguir_emocional" },
+        { "label": "Días", "next": "seguir_emocional" },
+        { "label": "Semanas o más", "next": "seguir_emocional" }
+      ]
+    },
+    "seguir_emocional": {
+      "type": "choice",
+      "question": "¿Quieres describir también cómo te sientes?",
+      "options": [
+        { "label": "Sí", "next": "emocion_cual" },
+        { "label": "No", "next": "seguridad" }
+      ]
+    },
+    "emocion_cual": {
+      "type": "choice",
+      "question": "¿Qué es lo que predomina?",
+      "options": [
+        { "label": "Ansiedad", "next": "emocion_intensidad" },
+        { "label": "Tristeza", "next": "emocion_intensidad" },
+        { "label": "Miedo", "next": "emocion_intensidad" },
+        { "label": "Rabia", "next": "emocion_intensidad" },
+        { "label": "Vacío", "next": "emocion_intensidad" },
+        { "label": "Confusión", "next": "emocion_intensidad" }
+      ]
+    },
+    "emocion_intensidad": {
+      "type": "scale",
+      "question": "¿Con cuánta fuerza?",
+      "min": 1,
+      "max": 5,
+      "minLabel": "Leve",
+      "maxLabel": "Me desborda",
+      "next": "seguridad"
+    },
+    "seguridad": {
+      "type": "choice",
+      "question": "¿Te sientes a salvo ahora mismo?",
+      "options": [
+        { "label": "Sí", "next": "nota_final" },
+        { "label": "No estoy seguro/a", "next": "compania" },
+        { "label": "No", "next": "compania" }
+      ]
+    },
+    "compania": {
+      "type": "choice",
+      "question": "¿Hay alguien contigo?",
+      "options": [
+        { "label": "Sí", "next": "nota_final" },
+        { "label": "No", "next": "nota_final" },
+        { "label": "No lo sé", "next": "nota_final" }
+      ]
+    },
+    "nota_final": {
+      "type": "text",
+      "question": "¿Algo más que quieras dejar anotado?",
+      "hint": "Opcional"
+    }
+  }
+}

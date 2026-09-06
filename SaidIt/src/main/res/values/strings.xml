@@ -175,6 +175,21 @@
 
     <string name="traces_title">Traces</string>
     <string name="settings_title">Settings</string>
+
+    <!-- Summaries on the folding section headers, so the whole setup reads at a glance -->
+
+    <string name="section_memory">Memory and quality</string>
+    <string name="state_on">on</string>
+    <string name="state_off">off</string>
+    <string name="state_low_power">low power</string>
+    <string name="state_loading">loading…</string>
+    <string name="state_needs_permission">permission needed</string>
+    <string name="state_provider_off">GPS is switched off</string>
+    <string name="state_no_model">no speech model</string>
+    <string name="state_seconds">%1$d s clips</string>
+    <string name="state_every_seconds">every %1$d s</string>
+    <string name="state_both_cameras">both cameras</string>
+    <string name="state_back_camera">back camera</string>
     <string name="traces_loading">Reading storage…</string>
     <string name="traces_ranges_title">Time covered that day</string>
     <string name="traces_previous_day">Previous day</string>
@@ -194,15 +209,24 @@
     <string name="traces_item_detail">%1$s · %2$s · %3$d kHz · %4$s</string>
     <string name="traces_item_detail_gps">%1$s · %2$s · GPS · %3$s</string>
     <string name="traces_item_detail_image">%1$s · %2$s · %3$s</string>
+    <string name="traces_item_detail_video">%1$s · %2$s · %3$s · %4$s</string>
     <string name="traces_count_breakdown">%1$s (%2$d audio, %3$d GPS)</string>
     <string name="traces_count_wrap">%1$s (%2$s)</string>
     <string name="traces_kind_audio">%1$d audio</string>
     <string name="traces_kind_gps">%1$d GPS</string>
     <string name="traces_kind_images">%1$d photos</string>
+    <string name="traces_kind_videos">%1$d clips</string>
+    <string name="traces_kind_notes">%1$d notes</string>
+    <string name="traces_kind_surveys">%1$d surveys</string>
     <string name="traces_image_back">Back photo</string>
     <string name="traces_image_front">Front photo</string>
     <string name="traces_image_screen">Screenshot</string>
     <string name="traces_image_generic">Photo</string>
+    <string name="traces_video_back">Back clip</string>
+    <string name="traces_video_front">Front clip</string>
+    <string name="traces_video_generic">Clip</string>
+    <string name="traces_note_label">Note</string>
+    <string name="traces_survey_label">Survey</string>
     <plurals name="traces_file_count">
         <item quantity="one">%d trace</item>
         <item quantity="other">%d traces</item>
@@ -210,6 +234,8 @@
     <string name="traces_cant_open">No installed app can play this file.</string>
     <string name="traces_cant_open_track">No installed app can open a GPX track.</string>
     <string name="traces_cant_open_image">No installed app can open this image.</string>
+    <string name="traces_cant_open_video">No installed app can play this clip.</string>
+    <string name="traces_cant_read">Couldn\'t read the file.</string>
     <string name="traces_cant_delete">Couldn\'t delete the file.</string>
     <string name="traces_delete_title">Delete file</string>
     <string name="traces_delete_message">Delete %1$s? This cannot be undone.</string>
@@ -353,17 +379,25 @@
     <string name="event_saved_track">Saved %1$s (%2$d fixes)</string>
     <string name="event_track_dropped">Track buffer was full, %1$d oldest fixes dropped</string>
 
-    <!-- Tilt camera capture -->
+    <!-- Shake camera capture -->
 
-    <string name="camera_title">Camera on tilt</string>
-    <string name="camera_on">Tilt capture: ON</string>
-    <string name="camera_off">Tilt capture: off</string>
-    <string name="camera_description">While Echo is listening, tilting the phone past the angle below takes one still from the front camera and one from the back, with no preview, saved beside the audio as .jpg files. It fires once each time the phone is tilted and not again until it is laid back flat, and never more than once every few seconds. Needs the camera permission.</string>
-    <string name="camera_permission_needed">Echo needs the camera permission to take photos on tilt.</string>
-    <string name="tilt_threshold_title">Tilt angle</string>
-    <string name="tilt_threshold_description">How far the phone is tilted away from lying flat before a capture fires. 90° is straight up on edge.</string>
-    <string name="degrees_format">%1$d°</string>
-    <string name="camera_min_title">Minimum seconds between shots</string>
+    <string name="camera_title">Camera on shake</string>
+    <string name="camera_on">Shake capture: ON</string>
+    <string name="camera_off">Shake capture: off</string>
+    <string name="camera_description">While Echo is listening, shaking the phone hard and then holding it still for a second records a short clip from the back camera and one from the front, with no preview, saved beside the audio as .mp4 files with no sound. Both halves are needed, which is what keeps a phone in a pocket from filming all day: shaking alone does nothing until the phone is held still, and stillness alone does nothing without a shake first. The phone vibrates twice around each clip: two quick taps when it starts recording, and then one long buzz when the clip is saved, or two long buzzes if nothing was recorded. Needs the camera permission.</string>
+    <string name="camera_permission_needed">Echo needs the camera permission to record on shake.</string>
+    <string name="shake_level_title">How hard to shake</string>
+    <string name="shake_level_gentle">Gentle</string>
+    <string name="shake_level_normal">Normal</string>
+    <string name="shake_level_hard">Hard</string>
+    <string name="shake_level_description">How hard the phone has to be shaken before it will record. Turn this up if it records by itself while it is being carried; turn it down if a shake goes unnoticed.</string>
+    <string name="front_camera_title">Front camera</string>
+    <string name="front_camera_on">Front camera: ON</string>
+    <string name="front_camera_off">Front camera: off</string>
+    <string name="front_camera_description">Switch this off to record the back camera alone. Shake capture keeps working; the front camera simply takes no part in it.</string>
+    <string name="clip_seconds_title">Clip length (seconds)</string>
+    <string name="clip_seconds_description">How long each clip runs for. A short clip is a small file: three seconds of one camera is about a megabyte.</string>
+    <string name="camera_min_title">Minimum seconds between clips</string>
     <string name="camera_min_back_label">Back camera (seconds)</string>
     <string name="camera_min_front_label">Front camera (seconds)</string>
     <string name="notification_camera_suffix">· camera</string>
@@ -379,24 +413,62 @@
     <string name="screenshot_min_label">Minimum seconds between screenshots</string>
     <string name="notification_screenshot_suffix">· screen</string>
 
+    <!-- Spoken keyword -->
+
+    <string name="keyword_title">Spoken keyword</string>
+    <string name="keyword_on">Keyword alert: ON</string>
+    <string name="keyword_off">Keyword alert: off</string>
+    <string name="keyword_words_hint">móvil</string>
+    <string name="keyword_description">Listens for the words above in the audio Echo is already recording and sounds an alarm when one of them is heard, within a couple of seconds. Recognition happens on the phone, with no second microphone stream and nothing sent anywhere, and keeps working with the screen off. Several words can be given, separated by commas. Quiet stretches are skipped without being recognised, so this costs little over recording alone in a silent room, and rather more where there is talking to listen through.</string>
+    <string name="keyword_no_model">This build ships no speech model, so nothing can be recognised. Put one in assets/vosk-model.</string>
+    <string name="keyword_loading">Loading the speech model…</string>
+    <string name="keyword_error">The speech model could not be loaded.</string>
+    <string name="keyword_needs_listening">Start Echo listening: there is no audio to listen to yet.</string>
+
+    <!-- Notes and surveys -->
+
+    <string name="note_button">Note</string>
+    <string name="note_title">New note</string>
+    <string name="note_hint">What is worth remembering about now?</string>
+    <string name="note_save">Save</string>
+    <string name="note_saved">Note saved as %1$s</string>
+    <string name="note_cant_save">The note could not be written.</string>
+    <string name="survey_button">How I feel</string>
+    <string name="survey_title">Emotional and physical state</string>
+    <string name="survey_step">Question %1$d</string>
+    <string name="survey_back">Back</string>
+    <string name="survey_cancel">Cancel</string>
+    <string name="survey_continue">Continue</string>
+    <string name="survey_save">Save</string>
+    <string name="survey_saved">Saved as %1$s</string>
+    <string name="survey_cant_save">The answers could not be written.</string>
+    <string name="survey_unavailable">The questionnaire could not be read.</string>
+
     <!-- Uploading traces -->
 
     <string name="upload_title">Send to server</string>
     <string name="upload_on">Sending: ON</string>
     <string name="upload_off">Sending: off</string>
     <string name="upload_url_hint">https://example.com/upload</string>
-    <string name="upload_description">Sends saved traces to the server above, oldest first, and deletes each one from the phone once the server has accepted it. Audio, GPS tracks and captured photos are all sent. On Android 14 and up this uses HTTP/3 (QUIC); older versions fall back to HTTPS. Nothing is deleted until it has been sent.</string>
+    <string name="upload_description">Sends saved traces to the server above, oldest first, and deletes each one from the phone once the server has accepted it. Audio, GPS tracks, clips, screenshots, notes and surveys are all sent. On Android 14 and up this uses HTTP/3 (QUIC); older versions fall back to HTTPS. Nothing is deleted until it has been sent.</string>
     <string name="notification_upload_suffix">· upload</string>
 
-    <string name="event_camera_on">Tilt camera capture on</string>
-    <string name="event_camera_off">Tilt camera capture off</string>
+    <string name="event_camera_on">Shake camera capture on</string>
+    <string name="event_camera_off">Shake camera capture off</string>
+    <string name="event_front_camera_on">Front camera included</string>
+    <string name="event_front_camera_off">Front camera left out</string>
     <string name="event_screenshot_on">Screenshots on</string>
     <string name="event_screenshot_off">Screenshots off</string>
+    <string name="event_keyword_on">Keyword listening on</string>
+    <string name="event_keyword_off">Keyword listening off</string>
+    <string name="event_keyword_heard">Heard \"%1$s\", alert sounded</string>
+    <string name="event_saved_text">Wrote %1$s</string>
     <string name="event_upload_on">Trace upload on</string>
     <string name="event_upload_off">Trace upload off</string>
 
     <!-- Errors -->
 
+    <string name="error_cant_write_text">Couldn\'t write %1$s</string>
     <string name="error_mic_unavailable">The microphone could not be opened. Another app may be using it, or the permission was revoked.</string>
     <string name="error_audio_read">Microphone read error (%1$d), retrying</string>
     <string name="error_capture_failed">Audio capture failed while filling memory.</string>

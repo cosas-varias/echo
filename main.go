@@ -38,6 +38,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	tracesDir := filepath.Join(exeDir, "traces")
+	if err := os.MkdirAll(tracesDir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "error: cannot create traces dir: %v\n", err)
+		os.Exit(1)
+	}
+
+	// La ingesta de trazas va aparte del PIN del formulario: aquel lo teclea una persona y son
+	// cuatro digitos, y este viaja en la URL de un telefono que sube archivos solo. Sin token no
+	// se acepta nada, porque el endpoint escribe en disco.
+	traces := newTraceStore(tracesDir)
+	if !traces.enabled() {
+		fmt.Fprintf(os.Stderr, "warning: %s no esta definido, /traces respondera 503\n", envTokenKey)
+	}
+
 	defaultLoc, err := time.LoadLocation("Europe/Madrid")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading timezone: %v\n", err)
@@ -97,13 +111,30 @@ func main() {
 		respond(w, r, http.StatusOK, msg)
 	})
 
+	// Ingesta de Echo, ver traces.go. Se registran las dos formas porque esta URL la teclea una
+	// persona en el telefono, y una barra de mas no deberia ser un fallo de subida.
+	mux.HandleFunc("/traces", traces.handle)
+	mux.HandleFunc("/traces/", traces.handle)
+
 	addr := ":8080"
 	if v := strings.TrimSpace(os.Getenv("PORT")); v != "" {
 		addr = ":" + v
 	}
 
+	// Sin ReadTimeout ni WriteTimeout a proposito. Una traza de decenas de megas por red movil
+	// es un cuerpo lento, y los dos plazos de Go empiezan a contar cuando se leen las cabeceras,
+	// asi que cualquiera de los dos cortaria la subida, o la respuesta a esa subida, a mitad. Lo
+	// que si hace falta es plazo para las cabeceras, que es lo que para a un cliente que abre
+	// conexiones y luego no dice nada.
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           securityHeaders(mux),
+		ReadHeaderTimeout: 20 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+
 	fmt.Printf("listening on %s\n", addr)
-	if err := http.ListenAndServe(addr, securityHeaders(mux)); err != nil {
+	if err := server.ListenAndServe(); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
 		os.Exit(1)
 	}

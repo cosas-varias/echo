@@ -17,8 +17,8 @@ RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /root/
 # Copiar el binario desde la etapa anterior
 COPY --from=builder /app/fast-notes .
-# Crear el directorio de notas para que tenga los permisos correctos
-RUN mkdir ./notes
+# Crear los directorios de notas y de trazas para que tengan los permisos correctos
+RUN mkdir ./notes ./traces
 # Exponer el puerto por defecto
 EXPOSE 8081
 # Comando para ejecutar la app

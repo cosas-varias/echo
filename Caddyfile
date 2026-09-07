@@ -1,0 +1,32 @@
+# Echo sube las trazas por HTTP/3 (QUIC) cuando el telefono puede, y por HTTPS cuando no. De eso
+# se encarga Caddy y no el servicio en Go: saca el certificado por si mismo y habla h3 en el 443
+# sin configuracion, que es lo unico que hace que el camino QUIC de la aplicacion se use de
+# verdad. El servicio de detras se queda hablando HTTP en claro dentro de la red de compose.
+#
+# Hace falta abrir el 443 tambien en UDP, ver docker-compose.yml: HTTP/3 es QUIC, y QUIC es UDP.
+# Sin ese puerto todo sigue funcionando, pero siempre por TCP y sin h3.
+
+{$ECHO_DOMAIN} {
+	# Un wav de cinco minutos ronda los 30 MB. El limite corta muy por encima porque un archivo
+	# rechazado por tamano bloquea la cola del telefono: la tanda se detiene en el primer fallo
+	# para no perder el orden, asi que un archivo que nunca entra no deja pasar a los de detras.
+	request_body {
+		max_size 512MB
+	}
+
+	reverse_proxy app:8080 {
+		# Subir decenas de megas por red movil lleva su tiempo, y el plazo por defecto de un
+		# minuto cortaria la subida a mitad. El telefono se rinde solo a los 60 s por archivo,
+		# de modo que estos plazos solo estan para que no sea Caddy quien corte antes.
+		transport http {
+			dial_timeout 10s
+			read_timeout 10m
+			write_timeout 10m
+		}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

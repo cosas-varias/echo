@@ -6,9 +6,14 @@ services:
       # Solo local: con Caddy delante, el puerto en claro no tiene por que salir de la maquina,
       # y por el suben trazas con el token en la URL. Quita el 127.0.0.1 si necesitas llegar
       # desde otro equipo sin pasar por Caddy.
-      - "127.0.0.1:8081:8080"
+      - "127.0.0.1:${HOST_PORT:-8081}:8080"
     env_file:
       - .env
+    environment:
+      # El puerto de dentro es parte del contrato con el mapeo de arriba y con el proxy de
+      # Caddy, no una preferencia. Fijarlo aqui, donde manda sobre lo que diga el .env, es lo
+      # que evita que cambiarlo alli deje la aplicacion escuchando donde nadie la busca.
+      - PORT=8080
     volumes:
       # Persistencia: las notas se guardarán en una carpeta local llamada 'notes'
       - ./notes:/root/notes

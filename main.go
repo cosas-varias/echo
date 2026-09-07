@@ -116,6 +116,8 @@ func main() {
 	mux.HandleFunc("/traces", traces.handle)
 	mux.HandleFunc("/traces/", traces.handle)
 
+	// PORT es para ejecutar el binario a mano. En Docker lo fija compose al 8080, porque ahi el
+	// puerto de dentro es parte del contrato con el mapeo y con el proxy, no una preferencia.
 	addr := ":8080"
 	if v := strings.TrimSpace(os.Getenv("PORT")); v != "" {
 		addr = ":" + v

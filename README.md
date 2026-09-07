@@ -10,9 +10,13 @@ recogida de las trazas que sube la aplicacion [Echo](https://github.com/cosas-va
 ## Configuracion
 
 1. Copia `.env.example` a `.env` y define `APP_PIN`.
-2. (Opcional) Cambia `PORT`.
-3. Para recibir trazas de Echo, define `ECHO_TOKEN` con algo largo y aleatorio
+2. Para recibir trazas de Echo, define `ECHO_TOKEN` con algo largo y aleatorio
    (`openssl rand -hex 32`). Sin token, `/traces` responde 503 y no acepta nada.
+3. (Opcional) `HOST_PORT` cambia el puerto publicado en la maquina, 8081 por defecto.
+
+Dentro del contenedor la aplicacion escucha siempre en el 8080: es a donde apuntan el mapeo de
+compose y el proxy de Caddy, asi que no es una preferencia que se pueda mover desde `.env`.
+Ejecutando el binario a mano, fuera de Docker, `PORT` si elige en cual escucha.
 
 ## Ejecutar en desarrollo
 
@@ -121,5 +125,5 @@ docker compose up -d --build
 ```
 
 El 443 se publica tambien en UDP: HTTP/3 es QUIC y QUIC es UDP. Sin ese puerto todo sigue
-funcionando, pero por TCP y sin h3. El puerto en claro del servicio queda en `127.0.0.1:8081`,
-para que el token no pueda viajar sin cifrar desde otra maquina.
+funcionando, pero por TCP y sin h3. El puerto en claro del servicio queda en `127.0.0.1:$HOST_PORT`
+(8081 por defecto), para que el token no pueda viajar sin cifrar desde otra maquina.

@@ -19,7 +19,7 @@ WORKDIR /root/
 COPY --from=builder /app/fast-notes .
 # Crear los directorios de notas y de trazas para que tengan los permisos correctos
 RUN mkdir ./notes ./traces
-# Exponer el puerto por defecto
-EXPOSE 8081
+# Exponer el puerto en el que escucha la aplicacion
+EXPOSE 8080
 # Comando para ejecutar la app
 CMD ["./fast-notes"]

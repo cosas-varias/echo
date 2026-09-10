@@ -12,7 +12,7 @@ public class SaidIt {
     static final String LOW_POWER_KEY = "low_power";
     static final String GPS_ENABLED_KEY = "gps_enabled";
     static final String PRE_LOW_POWER_SAMPLE_RATE_KEY = "pre_low_power_sample_rate";
-    /** Record a clip from both cameras whenever the phone is shaken and then held still. */
+    /** Record a clip from both cameras whenever the phone is shaken and then settles again. */
     static final String CAMERA_ENABLED_KEY = "camera_capture_enabled";
     /** How hard the shake has to be, as an index: 0 gentle, 1 normal, 2 vigorous. */
     static final String SHAKE_LEVEL_KEY = "shake_level";

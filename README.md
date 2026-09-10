@@ -25,8 +25,8 @@ reports (a revoked permission, GPS switched off) changes from outside the app.
 **GpxTrack** (thread-safe) buffers location fixes and writes them out as a GPX track.
 
 **ShakeCameraCapturer** watches the accelerometer and records a short silent clip from each camera
-when the phone is shaken hard and then held still, see *Asking for a clip* below. The front camera
-can be left out.
+when the phone is shaken hard and then lets it settle, see *Asking for a clip* below. The front
+camera can be left out.
 
 **KeywordDetector** listens for a spoken word in the PCM the recorder has already read and sounds
 an alarm when it hears it, see *Hearing a word* below.
@@ -68,12 +68,42 @@ stops arriving, so a microphone borrowed by another app never leaves Echo perman
 Asking for a clip
 ---
 
-A clip is recorded when the phone is shaken hard and *then* held still for a second, within ten
+A clip is recorded when the phone is shaken hard and *then* settles for a second, within ten
 seconds of the shake. Both halves are the point. An angle was the obvious trigger and the wrong
 one: a phone carried upright in a pocket sits past any threshold for hours, so it filmed the
 inside of the pocket all day. Shaking alone is not enough either, since walking and knocks produce
 swings of their own — the shake is counted as four swings past the threshold within a second and a
 half, and how hard those swings have to be is the one setting.
+
+Both halves are read as a *change* in how the phone is moving rather than as movement outright,
+which is what lets the gesture be used on the move. A slow average of the accelerometer is kept
+as the background — near zero for a phone on a table, a couple of m/s² for one being walked with
+— and frozen for as long as a gesture is under way. A swing counts when it rises past the
+threshold *above* that background, so the same shake is asked for at a desk and on a walk. And
+the second half is not stillness but a return: the movement of the last quarter of a second back
+within 0.8 m/s² of the background it had before the shake, plus a further 0.6 of the background
+itself, since a phone whose background is a walk does not sit at that background — every step is
+a swing and no amount of smoothing hides them all. Standing still satisfies it; so does walking
+on at the same pace. Measured absolutely, walking broke the gesture at both ends at once, since
+the swings of a walk cross into the shake threshold while the phone never once goes still.
+
+The background is frozen while a gesture is under way — a shake let into the average would raise
+the bar it has to clear — with the two guards that freezing needs. It is never frozen in the
+first two seconds after capture starts or after a gap in the samples, because the phone may well
+have been in motion the whole time and one sample is a poor guess at what it is living with; for
+those two seconds the background simply is the recent movement, and nothing is read as a gesture.
+And it is never frozen for more than fifteen seconds at a stretch, because movement that sits
+above the threshold and stays there — running, a phone on a machine — reads as one shake
+re-arming after another and would otherwise hold the background frozen below what the phone is
+doing forever, leaving it deaf to the real gesture.
+
+Each clip is as wide as the hardware allows, because nothing about this gesture is aimed: there
+is no preview, often no screen on, and the phone is pointed with a hand. So the widest lens of
+however many a side has is the one used, chosen by the field of view its focal length and sensor
+work out to; the request is zoomed all the way out, which on phones that hide their ultra wide
+behind one logical camera — Pixels among them — is the only way to reach it at all; and the
+recording is shaped like the sensor rather than like a screen, since asking a 4:3 sensor for 16:9
+only throws away the top and bottom of the frame.
 
 A gesture with no answer cannot be learnt, and this one has nothing to show for itself: no
 preview, no shutter sound, and often no screen on. So the phone talks back through its vibrator,

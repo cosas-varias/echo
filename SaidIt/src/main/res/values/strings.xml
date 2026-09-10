@@ -384,13 +384,13 @@
     <string name="camera_title">Camera on shake</string>
     <string name="camera_on">Shake capture: ON</string>
     <string name="camera_off">Shake capture: off</string>
-    <string name="camera_description">While Echo is listening, shaking the phone hard and then holding it still for a second records a short clip from the back camera and one from the front, with no preview, saved beside the audio as .mp4 files with no sound. Both halves are needed, which is what keeps a phone in a pocket from filming all day: shaking alone does nothing until the phone is held still, and stillness alone does nothing without a shake first. The phone vibrates twice around each clip: two quick taps when it starts recording, and then one long buzz when the clip is saved, or two long buzzes if nothing was recorded. Needs the camera permission.</string>
+    <string name="camera_description">While Echo is listening, shaking the phone hard and then letting it settle for a second records a short clip from the back camera and one from the front, with no preview, saved beside the audio as .mp4 files with no sound. Both halves are needed, which is what keeps a phone in a pocket from filming all day: shaking alone does nothing until the shaking stops, and stopping does nothing without a shake first. Settling is measured against how the phone was already moving rather than against stillness, so the gesture works just as well while walking: carry on at the same pace and the clip is recorded. Each side is filmed with its widest lens, zoomed right out, since nothing here is aimed through a viewfinder. The phone vibrates twice around each clip: two quick taps when it starts recording, and then one long buzz when the clip is saved, or two long buzzes if nothing was recorded. Needs the camera permission.</string>
     <string name="camera_permission_needed">Echo needs the camera permission to record on shake.</string>
     <string name="shake_level_title">How hard to shake</string>
     <string name="shake_level_gentle">Gentle</string>
     <string name="shake_level_normal">Normal</string>
     <string name="shake_level_hard">Hard</string>
-    <string name="shake_level_description">How hard the phone has to be shaken before it will record. Turn this up if it records by itself while it is being carried; turn it down if a shake goes unnoticed.</string>
+    <string name="shake_level_description">How much harder than it is already being moved the phone has to be shaken before it will record. Because it is measured as a change, the same shake works standing still, walking or in a car. Turn this up if it records by itself while it is being carried; turn it down if a shake goes unnoticed.</string>
     <string name="front_camera_title">Front camera</string>
     <string name="front_camera_on">Front camera: ON</string>
     <string name="front_camera_off">Front camera: off</string>
